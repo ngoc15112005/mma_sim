@@ -1,51 +1,20 @@
 import streamlit as st
 import random
-from finish_method import get_dynamic_finish_method, FIGHTER_ARCHETYPES, FINISH_METHODS
-from battle_result import analyze_battle_result_expanded
-from fight_time import generate_dynamic_fight_time
+from finish_method import FIGHTER_ARCHETYPES
 from fighter_class import FIGHTER_CLASSES
-from fight_logic import simulate_fight_scores
+from models import FightResult, Fighter
+from fight import Fight
 
-def simulate_fight_ui(num_rounds, class_a, class_b, selected_archetype):
-    # Sử dụng logic mô phỏng mới để tạo ra điểm số, cho phép các kết quả bất ngờ
-    a, b = simulate_fight_scores(
-        class_a if class_a != "Ngẫu nhiên" else None,
-        class_b if class_b != "Ngẫu nhiên" else None
-    )
-
-    result_description = analyze_battle_result_expanded(a, b)
-    score_diff = abs(a - b)
-
-    # Xử lý logic kết liễu dựa trên kết quả
-    if a == b: # Trường hợp Hòa
-        finish = {
-            "archetype_name": "Không có",
-            "archetype_description": "Trận đấu kết thúc với tỷ số hòa.",
-            "description": random.choice(FINISH_METHODS["DRAW"]),
-            "method_type": "DRAW"
-        }
-        time_info = generate_dynamic_fight_time("DRAW", num_rounds) # Hòa luôn hết giờ
-    else: # Trường hợp có người thắng
-        # Xác định phong cách của người thắng
-        winner_archetype = None
-        if selected_archetype != "Ngẫu nhiên":
-            winner_archetype = selected_archetype
-        else:
-            # Nếu không chọn, lấy ngẫu nhiên một phong cách
-            winner_archetype = random.choice(list(FIGHTER_ARCHETYPES.keys()))
-
-        # Gọi hàm logic động mới
-        finish = get_dynamic_finish_method(winner_archetype, score_diff)
-        time_info = generate_dynamic_fight_time(finish["method_type"], num_rounds, winner_archetype, score_diff)
-
+def display_fight_results(result: FightResult, class_a: str, class_b: str):
+    """Hàm này chỉ chịu trách nhiệm hiển thị kết quả lên giao diện Streamlit."""
     st.markdown("## Kết quả mô phỏng")
     st.write(f"**Trận đấu:** `{class_a}` (A) vs `{class_b}` (B)")
-    st.write(f"**Điểm kỹ năng:** `{a}` vs `{b}`")
-    st.success(f"**Kết quả:** {result_description}")
-
-    st.error(f"**Kiểu kết liễu:** {finish['description']}")
-    st.write(f"Thời điểm: Hiệp {time_info['round']}/{time_info['num_rounds']} – {time_info['minute']}:{str(time_info['second']).zfill(2)}")
-    st.write(f"Ghi chú: {time_info['note']}")
+    st.write(f"**Điểm kỹ năng:** `{result.score_a}` vs `{result.score_b}`")
+    st.success(f"**Kết quả:** {result.result_description}")
+ 
+    st.error(f"**Kiểu kết liễu:** {result.finish_info.description}")
+    st.write(f"Thời điểm: Hiệp {result.time_info.round}/{result.time_info.num_rounds} – {result.time_info.minute}:{str(result.time_info.second).zfill(2)}")
+    st.write(f"Ghi chú: {result.time_info.note}")
 
 # --- Giao diện ---
 st.title("🔥 Mô Phỏng MMA Vĩ Đại 🔥")
@@ -71,7 +40,8 @@ description_for_help = "Di chuột vào đây sau khi chọn một phong cách �
 default_index = 0
 if 'archetype_selector' in st.session_state and st.session_state.archetype_selector != "Ngẫu nhiên":
     selected_value = st.session_state.archetype_selector
-    description_for_help = FIGHTER_ARCHETYPES[selected_value]["description"]
+    # Truy cập thuộc tính .description của đối tượng Archetype
+    description_for_help = FIGHTER_ARCHETYPES[selected_value].description
     # Tìm index của lựa chọn trước đó để đặt làm giá trị mặc định cho lần chạy này
     if selected_value in archetype_options:
         default_index = archetype_options.index(selected_value)
@@ -85,4 +55,22 @@ selected_archetype = st.selectbox(
 )
 
 if st.button("🎮 Mô phỏng trận đấu"):
-    simulate_fight_ui(rounds, selected_class_a, selected_class_b, selected_archetype)
+    # 1. Lấy tên đẳng cấp và phong cách từ UI, xử lý trường hợp "Ngẫu nhiên"
+    class_a_name = selected_class_a if selected_class_a != "Ngẫu nhiên" else random.choice(list(FIGHTER_CLASSES.keys()))
+    class_b_name = selected_class_b if selected_class_b != "Ngẫu nhiên" else random.choice(list(FIGHTER_CLASSES.keys()))
+    archetype_name = selected_archetype if selected_archetype != "Ngẫu nhiên" else random.choice(list(FIGHTER_ARCHETYPES.keys()))
+
+    # 2. Tạo các đối tượng Fighter
+    # Giả định cả hai võ sĩ đều có cùng phong cách được chọn (hoặc ngẫu nhiên)
+    # Đây là một điểm có thể mở rộng trong tương lai (mỗi võ sĩ có phong cách riêng)
+    archetype_obj = FIGHTER_ARCHETYPES[archetype_name]
+    fighter_a = Fighter(fighter_class=FIGHTER_CLASSES[class_a_name], archetype=archetype_obj)
+    fighter_b = Fighter(fighter_class=FIGHTER_CLASSES[class_b_name], archetype=archetype_obj)
+    
+    # 3. Tạo và chạy mô phỏng thông qua đối tượng Fight
+    fight = Fight(fighter_a, fighter_b, rounds)
+    fight.simulate()
+    fight_result = fight.result
+    
+    # 4. Hiển thị kết quả ra giao diện, sử dụng tên đẳng cấp thực tế đã được mô phỏng
+    display_fight_results(fight_result, class_a_name, class_b_name)
