@@ -1,7 +1,7 @@
 import random
-from finish_method import random_finish_method, FIGHTER_ARCHETYPES
+from finish_method import get_dynamic_finish_method, FIGHTER_ARCHETYPES, FINISH_METHODS
 from battle_result import analyze_battle_result_expanded
-from fight_time import generate_fight_time
+from fight_time import generate_dynamic_fight_time
 from fighter_class import FIGHTER_CLASSES, generate_skill_point
 from fight_logic import simulate_fight_scores
 
@@ -14,8 +14,24 @@ def simulate_fight(num_rounds):
     a, b = simulate_fight_scores(class_a_name, class_b_name)
 
     result_description = analyze_battle_result_expanded(a, b)
-    finish = random_finish_method()
-    time_info = generate_fight_time(finish["method_type"], num_rounds)
+    score_diff = abs(a - b)
+
+    # Xử lý logic kết liễu dựa trên kết quả
+    if a == b: # Trường hợp Hòa
+        finish = {
+            "archetype_name": "Không có",
+            "archetype_description": "Trận đấu kết thúc với tỷ số hòa.",
+            "description": random.choice(FINISH_METHODS["DRAW"]),
+            "method_type": "DRAW"
+        }
+        time_info = generate_dynamic_fight_time("DRAW", num_rounds) # Hòa luôn hết giờ
+    else: # Trường hợp có người thắng
+        # Trong main.py, chúng ta chọn ngẫu nhiên phong cách cho người thắng
+        winner_archetype = random.choice(list(FIGHTER_ARCHETYPES.keys()))
+
+        # Gọi hàm logic động mới
+        finish = get_dynamic_finish_method(winner_archetype, score_diff)
+        time_info = generate_dynamic_fight_time(finish["method_type"], num_rounds, winner_archetype, score_diff)
 
     print("\n🎮 MÔ PHỎNG TRẬN ĐẤU MMA")
     print("═══════════════════════════")
